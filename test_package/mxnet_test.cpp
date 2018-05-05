@@ -1,8 +1,9 @@
 #include <iostream>
-#include <mxnet/base.h>
+#include <mxnet-cpp/MxNetCpp.h>
+
+using namespace mxnet::cpp;
 
 int main() {
-    mxnet::Context context;
-
-    return context.real_dev_id();
+    Context device = Context::cpu();
+    return 0;
 }

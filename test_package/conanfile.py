@@ -18,4 +18,4 @@ class MxnetTestConan(ConanFile):
 
     def test(self):
         os.chdir("bin")
-        self.run(".%sexample" % os.sep)
+        self.run(".%smxnet_test" % os.sep)
