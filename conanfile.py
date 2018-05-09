@@ -43,7 +43,7 @@ class MxnetConan(ConanFile):
         if self.options.use_lapack:
             self.requires("lapack/3.7.1@conan/stable")
 
-        self.requires("openblas/0.2.20@conan/stable")
+        self.requires("openblas/0.2.20@cognitiv/stable")
 
     def source(self):
         self.run("git clone --recursive --branch v{} https://github.com/apache/incubator-mxnet mxnet".format(self.version))
@@ -122,9 +122,17 @@ mxnet_option(USE_OPENCV''')
                 self.copy(pattern="*.a", dst="lib", src="mxnet/dmlc-core")
 
     def package_info(self):
-        self.cpp_info.libs = ["mxnet", "nnvm", "dmlc"]
+        self.cpp_info.libs = ["mxnet"]
         if self.settings.compiler != "Visual Studio":
             self.cpp_info.libs.append("rt")
+        if not self.options.shared:
+            self.cpp_info.libs.extend(["nnvm", "dmlc"])
+            if self.settings.os == "Macos":
+                self.cpp_info.libs.insert(0, "-Wl,-all_load")
+                self.cpp_info.libs.append("-Wl,-noall_load")
+            elif self.settings.os != "Windows":
+                self.cpp_info.libs.insert(0, "-Wl,--whole-archive")
+                self.cpp_info.libs.append("-Wl,--no-whole-archive")
 
         self.cpp_info.libdirs = ["lib"]
         self.cpp_info.includedirs = ["include"]

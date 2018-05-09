@@ -3,7 +3,7 @@ import os
 
 class MxnetTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    generators = "cmake"
+    generators = ("cmake", "virtualrunenv")
 
     def build(self):
         cmake = CMake(self)
@@ -17,5 +17,4 @@ class MxnetTestConan(ConanFile):
         self.copy('*.so*', dst='bin', src='lib')
 
     def test(self):
-        os.chdir("bin")
-        self.run(".%smxnet_test" % os.sep)
+        self.run(". .{0}activate_run.{1} && bin{0}mxnet_test".format(os.sep, "bat" if self.settings.os == "Windows" else "sh"))
