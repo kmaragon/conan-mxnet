@@ -5,6 +5,9 @@ class MxnetTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     generators = ("cmake", "virtualrunenv")
 
+    def configure(self):
+        self.options['mxnet'].use_lapack = False
+
     def build(self):
         cmake = CMake(self)
         # Current dir is "test_package/build/<build_id>" and CMakeLists.txt is in "test_package"
