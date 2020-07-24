@@ -3,7 +3,7 @@ import os
 
 class MxnetConan(ConanFile):
     name = "mxnet"
-    version = "1.2.1"
+    version = "1.6.0"
     license = "Apache 2.0"
     url = "https://github.com/kmaragon/conan-mxnet"
     description = "Conan package for the MXNet machine learning library"
@@ -31,48 +31,42 @@ class MxnetConan(ConanFile):
         "use_gperftools=False",
         "use_jemalloc=False"
     )
-    generators = ("cmake", "virtualbuildenv", "virtualrunenv")
+    generators = ("cmake", "cmake_find_package")
 
     def requirements(self):
-        self.requires("openblas/0.2.20@cognitiv/stable")
-        if self.options.use_openmp:
-            self.options["openblas"].USE_OPENMP = True
-        self.options["openblas"].NO_LAPACKE = True
+        self.requires("openblas/0.3.10")
+        if self.options.use_lapack:
+            self.options["openblas"].build_lapack = True
+        else:
+            self.options["openblas"].build_lapack = False
         self.options["openblas"].shared = self.options.shared
 
         if self.options.use_jemalloc:
-            self.requires("jemalloc/5.0.1@ess-dmsc/stable")
+            self.requires("jemalloc/5.2.1")
             self.options["jemalloc"].shared = self.options.shared
         if self.options.use_lapack:
-            self.requires("lapack/3.7.1@cognitiv/stable")
+            self.requires("lapack/3.7.1@conan/stable")
             self.options["lapack"].shared = self.options.shared
 
     def source(self):
-        tools.get('https://github.com/apache/incubator-mxnet/releases/download/1.2.1/apache-mxnet-src-1.2.1-incubating.tar.gz')
-        os.rename('apache-mxnet-src-1.2.1-incubating', 'mxnet')
+        tools.get('https://github.com/apache/incubator-mxnet/releases/download/{0}/apache-mxnet-src-{0}-incubating.tar.gz'.format(self.version))
+        os.rename('apache-mxnet-src-{}-incubating'.format(self.version), 'mxnet')
 
-        tools.replace_in_file("mxnet/CMakeLists.txt", "mxnet_option(USE_OPENCV", '''include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
-mxnet_option(USE_OPENCV''')
         # conan will take care of this
-        tools.replace_in_file("mxnet/CMakeLists.txt", "list(APPEND mxnet_LINKER_LIBS lapack)", "")
+        tools.replace_in_file(os.path.join("mxnet", "CMakeLists.txt"), "list(APPEND mxnet_LINKER_LIBS lapack)", "")
 
         # skip unit tests
-        tools.replace_in_file("mxnet/3rdparty/dmlc-core/CMakeLists.txt", "add_subdirectory(test/unittest)", "")
-        tools.replace_in_file("mxnet/CMakeLists.txt", 'add_subdirectory(tests)', '')
+        tools.replace_in_file(os.path.join("mxnet", "3rdparty", "dmlc-core", "CMakeLists.txt"), "add_subdirectory(test/unittest)", "")
+        tools.replace_in_file(os.path.join("mxnet", "CMakeLists.txt"), 'add_subdirectory(tests)', '')
 
-        #tools.replace_in_file("mxnet/Makefile", "CFLAGS = ", "CFLAGS := -I$(BLAS_INCLUDE_PATH) $(CPPFLAGS) $(CFLAGS) ")
-        #tools.replace_in_file("mxnet/Makefile", "LDFLAGS = ", "LDFLAGS += $(LIBS) ")
+        # Please tell me mxnet 2.0's build won't be such a pile of crap
+        tools.replace_in_file(os.path.join("mxnet", "CMakeLists.txt"), "set(CMAKE_MODULE_PATH ", '''
+        set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
+        # set(CMAKE_MODULE_PATH ''')
+        tools.replace_in_file(os.path.join("mxnet", "cmake", "ChooseBlas.cmake"), "include_directories(SYSTEM ${OpenBLAS_INCLUDE_DIR})", "include_directories(SYSTEM ${OpenBLAS_INCLUDE_DIR}/openblas)")
+        tools.replace_in_file(os.path.join("mxnet", "cmake", "ChooseBlas.cmake"), "list(APPEND mshadow_LINKER_LIBS ${OpenBLAS_LIB})", "list(APPEND mshadow_LINKER_LIBS ${OpenBLAS_LIBRARIES})")
 
     def build(self):
-        deps = "CONAN_PKG::openblas"
-        if self.options.use_lapack:
-            deps += " CONAN_PKG::lapack"
-        if self.options.use_jemalloc:
-            deps += " CONAN_PKG::jemalloc"
-
-        tools.replace_in_file(os.path.join(self.source_folder, "mxnet", "CMakeLists.txt"), "target_link_libraries(mxnet PRIVATE ${BEGIN_WHOLE_ARCHIVE} $<TARGET_FILE:mxnet_static> ${END_WHOLE_ARCHIVE})", "target_link_libraries(mxnet PRIVATE ${BEGIN_WHOLE_ARCHIVE} $<TARGET_FILE:mxnet_static> " + deps + " ${END_WHOLE_ARCHIVE})")
-
         options = {}
 
         options["USE_OLDCMAKECUDA"] = "OFF"
@@ -124,33 +118,34 @@ mxnet_option(USE_OPENCV''')
             self.copy(pattern="*.hpp", dst="include", src="mxnet/3rdparty/dmlc-core/include")
 
             if self.options.shared:
-                self.copy(pattern="*.dylib", dst="lib", src="lib")
+                self.copy(pattern="*.dylib", dst="lib", src=".")
                 self.copy(pattern="*.so", dst="lib", src="lib")
-                self.copy(pattern="*.dylib", dst="lib", src="mxnet/lib")
-                self.copy(pattern="*.so", dst="lib", src="mxnet/lib")
-                self.copy(pattern="*.dylib", dst="lib", src="mxnet/3rdparty/nnvm/lib")
-                self.copy(pattern="*.dylib", dst="lib", src="mxnet/3rdparty/nnvm/lib")
+                #self.copy(pattern="*.dylib", dst="lib", src="mxnet/3rdparty/nnvm/lib")
+                #self.copy(pattern="*.dylib", dst="lib", src="mxnet/3rdparty/nnvm/lib")
                 #self.copy(pattern="*.so", dst="lib", src="mxnet/3rdparty/nnvm/lib")
-                self.copy(pattern="*.dylib", dst="lib", src="mxnet/3rdparty/dmlc-core")
-                self.copy(pattern="*.so", dst="lib", src="mxnet/3rdparty/dmlc-core")
+                self.copy(pattern="*.dylib", dst="lib", src="3rdparty/dmlc-core")
+                self.copy(pattern="*.so", dst="lib", src="3rdparty/dmlc-core")
             else:
+                self.copy(pattern="*.a", dst="lib", src=".")
                 self.copy(pattern="*.a", dst="lib", src="lib")
-                self.copy(pattern="*.a", dst="lib", src="mxnet/lib")
                 #self.copy(pattern="*.a", dst="lib", src="mxnet/3rdparty/nnvm/lib")
-                self.copy(pattern="*.a", dst="lib", src="mxnet/3rdparty/dmlc-core")
+                self.copy(pattern="*.a", dst="lib", src="3rdparty/dmlc-core")
 
     def package_info(self):
         self.cpp_info.libs = ["mxnet", "dmlc"]
         if self.settings.compiler != "Visual Studio":
             self.cpp_info.libs.append("rt")
         if not self.options.shared:
-            self.cpp_info.libs.extend(["nnvm"])
+            # self.cpp_info.libs.extend(["nnvm"])
             if self.settings.os == "Macos":
                 self.cpp_info.libs.insert(0, "-Wl,-all_load")
                 self.cpp_info.libs.append("-Wl,-noall_load")
             elif self.settings.os != "Windows":
                 self.cpp_info.libs.insert(0, "-Wl,--whole-archive")
                 self.cpp_info.libs.append("-Wl,--no-whole-archive")
+
+        if self.settings.os != "Windows":
+            self.cpp_info.libs.append("dl")
 
         self.cpp_info.libdirs = ["lib"]
         self.cpp_info.includedirs = ["include"]
